@@ -128,7 +128,7 @@ class Harvardsettings {
         }
         $querystring = substr($querystring, 0, -1);
         $base_url = confirm_slash(base_url());
-        return "$base_url/system/dashboard?$querystring#tabs-{$this->plugin_name}";
+        return $base_url."system/dashboard?$querystring#tabs-{$this->plugin_name}";
     }
 
     public function error($msg='') {
