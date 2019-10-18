@@ -18,7 +18,7 @@ class Harvardsettings {
         $this->CI =& get_instance();
     }
 
-    public function check_dependencies() {
+    public function check_plugin() {
         if(empty($this->book)) {
             return array(false ,"Please select a book to manage using the pulldown menu above");
         }
@@ -29,7 +29,7 @@ class Harvardsettings {
     }
 
     public function get() {
-        list($ok, $msg) = $this->check_dependencies();
+        list($ok, $msg) = $this->check_plugin();
         if(!$ok) {
             echo $msg;
             return;
@@ -38,14 +38,14 @@ class Harvardsettings {
     }
 
     public function handle_action($action) {
-        list($ok, $msg) = $this->check_dependencies();
+        list($ok, $msg) = $this->check_plugin();
         if(!$ok) {
             return;
         }
         switch($action) {
             case "plugin_{$this->plugin_name}_form":
                 $subdomain_is_on = isset($_POST['subdomain_is_on']) ? $_POST['subdomain_is_on'] : '0';
-                $this->save_book_property('subdomain_is_on', $subdomain_is_on);
+                $this->save_book_properties(array('subdomain_is_on' => (int) $subdomain_is_on));
                 $this->redirect_and_exit();
                 break;
             default:
@@ -53,30 +53,28 @@ class Harvardsettings {
         }
     }
 
-    public function save_book_property($property, $subdomain_is_on) {
-        $book_data = array();
+    public function save_book_properties($book_data) {
         $book_data['book_id'] = (int) $this->book->book_id;
-        $book_data[$property] = (int) $subdomain_is_on;
         return $this->CI->books->save($book_data);
     }
 
     public function redirect_and_exit() {
-        $base_url = confirm_slash(base_url());
-        $book_id = $this->book->book_id;
-        header("Location: $base_url/system/dashboard?book_id={$book_id}&zone={$this->plugin_name}#tabs-{$this->plugin_name}");
+        $params = array('saved' => 1);
+        $tab_url = $this->get_tab_url($params);
+        header("Location: $tab_url");
         exit(0);
     }
 
     public function get_subdomain_is_on() {
-        return (bool) isset($this->book->get_subdomain_is_on) ? $this->book->subdomain_is_on : 0;
+        return (bool) isset($this->book->subdomain_is_on) ? $this->book->subdomain_is_on : 0;
     }
 
     public function get_subdomain_url() {
-				$book_subdomain_url = false;
+        $book_subdomain_url = false;
         if($this->get_subdomain_is_on()) {
-					$scheme = ($this->CI->config->item('is_https') ? 'https' : 'http');
-					$domain = getenv('SCALAR_DOMAIN') ? getenv('SCALAR_DOMAIN') : $_SERVER['SERVER_NAME'];
-					$book_subdomain_url = $scheme . '://' . $this->book->slug . '.' . $domain . '/';
+            $scheme = ($this->CI->config->item('is_https') ? 'https' : 'http');
+            $domain = getenv('SCALAR_DOMAIN') ? getenv('SCALAR_DOMAIN') : $_SERVER['SERVER_NAME'];
+            $book_subdomain_url = $scheme . '://' . $this->book->slug . '.' . $domain . '/';
         }
         return $book_subdomain_url;
     }
@@ -84,8 +82,18 @@ class Harvardsettings {
     public function display_form() {
         $subdomain_is_on = $this->get_subdomain_is_on();
         $book_subdomain_url = $this->get_subdomain_url();
+        $tab_url = $this->get_tab_url();
         $action = "plugin_{$this->plugin_name}_form";
+        $saved = isset($_GET['saved']) ? $_GET['saved'] == '1' : false;
         ?>
+        <?php if($saved): ?>
+            <div class="saved">
+                <?= $this->name; ?> saved
+                <div style="float:right;">
+                    <a href="<?= $tab_url ?>">clear</a>
+                </div>
+            </div>
+        <?php endif; ?>
         <form id="style_form" action="<?=confirm_slash(base_url())?>system/dashboard" method="post" enctype="multipart/form-data">
             <input type="hidden" name="action" value="<?= $action ?>" />
             <? if (!empty($this->book)): ?>
@@ -100,7 +108,7 @@ class Harvardsettings {
                         <option value="1" <?= ($subdomain_is_on?'selected':''); ?>>Yes</option>
                     </select>
                     <?php if($book_subdomain_url !== false): ?>
-                        <?= (htmlspecialchars($book_subdomain_url)); ?>
+                        <a target="_blank" href="<?= htmlspecialchars($book_subdomain_url); ?>"><?= htmlspecialchars($book_subdomain_url); ?></a>
                     <?php endif; ?>
                 </div>
                 <div style="margin-top: 10px;">
@@ -109,6 +117,18 @@ class Harvardsettings {
             </fieldset>
         </form>
         <?php
+    }
+
+    public function get_tab_url($query_params=array()){
+        $query_params['book_id'] = $this->book->book_id;
+        $query_params['zone'] = $this->plugin_name;
+        $querystring = '';
+        foreach($query_params as $k => $v) {
+            $querystring .= $k.'='.rawurlencode($v).'&';
+        }
+        $querystring = substr($querystring, 0, -1);
+        $base_url = confirm_slash(base_url());
+        return "$base_url/system/dashboard?$querystring#tabs-{$this->plugin_name}";
     }
 
     public function error($msg='') {
