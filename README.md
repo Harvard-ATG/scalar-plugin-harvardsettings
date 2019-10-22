@@ -7,6 +7,8 @@ This plugin adds a tab to the admin dashboard for Harvard-specific settings.
 ## Requirements
 
 [Scalar](https://github.com/anvc/scalar) must be installed and configured. 
+    
+- _Note: requires [Harvard-ATG/scalar](https://github.com/Harvard-ATG/scalar/commits/dev) fork which implements plugin actions in commit [ff43d95](https://github.com/Harvard-ATG/scalar/commit/ff43d95f4c37b40afa3c4daf452da90a4c1359ff)._
 
 ## Quickstart
 
