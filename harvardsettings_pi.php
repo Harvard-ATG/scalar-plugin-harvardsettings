@@ -7,15 +7,16 @@ class Harvardsettings {
     public $plugin_path = null; // url path to plugin dir
     public $plugin_exists = false; // true if plugin_dir exists
     public $book = null; // holds book object
+    public $CI = null; // holds codeigniter controller
 
     public function __construct($data=array()) {
         $this->plugin_dir = dirname(__FILE__).'/'.strtolower(get_class($this)).'/';
         if (file_exists($this->plugin_dir)) $this->plugin_exists = true;
         if (!file_exists($this->plugin_dir.'index.php')) $this->plugin_exists = false;
-        $this->plugin_path = confirm_slash(base_url()).'system/application/plugins/'.strtolower(get_class($this)).'/';
+        $this->plugin_path = $this->get_base_url().'system/application/plugins/'.strtolower(get_class($this)).'/';
 
         $this->book = isset($data['book']) ? $data['book'] : null;
-        $this->CI =& get_instance();
+        $this->CI = $this->get_codeigniter_instance();
     }
 
     public function check_plugin() {
@@ -55,7 +56,7 @@ class Harvardsettings {
 
     public function save_book_properties($book_data) {
         $book_data['book_id'] = (int) $this->book->book_id;
-        return $this->CI->books->save($book_data);
+        return $this->get_codeigniter_controller()->books->save($book_data);
     }
 
     public function redirect_and_exit() {
@@ -82,6 +83,7 @@ class Harvardsettings {
     public function display_form() {
         $subdomain_is_on = $this->get_subdomain_is_on();
         $book_subdomain_url = $this->get_subdomain_url();
+        $base_url = $this->get_base_url();
         $tab_url = $this->get_tab_url();
         $action = "plugin_{$this->plugin_name}_form";
         $saved = isset($_GET['saved']) ? $_GET['saved'] == '1' : false;
@@ -94,7 +96,7 @@ class Harvardsettings {
                 </div>
             </div>
         <?php endif; ?>
-        <form id="style_form" action="<?=confirm_slash(base_url())?>system/dashboard" method="post" enctype="multipart/form-data">
+        <form id="style_form" action="<?= $base_url ?>system/dashboard" method="post" enctype="multipart/form-data">
             <input type="hidden" name="action" value="<?= $action ?>" />
             <? if (!empty($this->book)): ?>
                 <input type="hidden" name="book_id" value="<?= $this->book->book_id?>" />
@@ -127,8 +129,16 @@ class Harvardsettings {
             $querystring .= $k.'='.rawurlencode($v).'&';
         }
         $querystring = substr($querystring, 0, -1);
-        $base_url = confirm_slash(base_url());
+        $base_url = $this->get_base_url();
         return $base_url."system/dashboard?$querystring#tabs-{$this->plugin_name}";
+    }
+
+    public function get_base_url() {
+        return confirm_slash(base_url());
+    }
+
+    public function get_codeigniter_instance() {
+        return get_instance();
     }
 
     public function error($msg='') {
