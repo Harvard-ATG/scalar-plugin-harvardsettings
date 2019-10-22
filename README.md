@@ -6,12 +6,12 @@ This plugin adds a tab to the admin dashboard for Harvard-specific settings.
 
 ## Requirements
 
-Scalar must be installed and configured.
+[Scalar](https://github.com/anvc/scalar) must be installed and configured. 
 
 ## Quickstart
 
 1. Download and unzip `harvardsettings_pi.php` to `system/application/plugins/`
-2. Update plugin configuration in `system/application/config/plugins.php`:
+2. Add plugin to `system/application/config/plugins.php`:
 
 ```php
 $config['plugins']['dashboard'][] = 'harvardsettings';
