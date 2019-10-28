@@ -56,7 +56,7 @@ class Harvardsettings {
 
     public function save_book_properties($book_data) {
         $book_data['book_id'] = (int) $this->book->book_id;
-        return $this->get_codeigniter_controller()->books->save($book_data);
+        return $this->get_codeigniter_instance()->books->save($book_data);
     }
 
     public function redirect_and_exit() {
