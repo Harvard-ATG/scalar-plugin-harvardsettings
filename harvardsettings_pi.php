@@ -38,9 +38,10 @@ class Harvardsettings {
             return;
         }
         $this->display_form();
+         
         if ($this->CI->data['login_is_super']) {
             $this->display_user_upload_form();
-        }
+        }    
     }
 
     public function handle_action($action) {
@@ -76,6 +77,9 @@ class Harvardsettings {
                         $this->redirect_and_exit($redirect_params);
                     }
                 }
+                break;
+            case "plugin_{$this->plugin_name}_download_template":
+                $this->download_template();
                 break;
             default:
                 break;
@@ -152,6 +156,7 @@ class Harvardsettings {
 
         $base_url = $this->get_base_url();
         $action = "plugin_{$this->plugin_name}_upload_user_form";
+        $download_template_action = "plugin_{$this->plugin_name}_download_template";
         $tab_url = $this->get_tab_url();
         $imported = isset($_GET['imported']) ? $_GET['imported'] == '1' : false;
         $color = isset($_GET['error']) ? "error" : "saved";
@@ -179,8 +184,18 @@ class Harvardsettings {
                 <div style="margin-top: 10px;">
                     <input type="submit" class="generic_button large default" value="Upload"/>
                 </div>
-            </fieldset>
+            </fieldset>  
         </form>
+        <div style="padding-left:1em;">
+            <form id="download_template" action="<?= $base_url ?>system/dashboard" method="post" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="<?= $download_template_action ?>" />
+                <? if (!empty($this->book)): ?>
+                    <input type="hidden" name="book_id" value="<?= $this->book->book_id?>" />
+                <? endif ?>
+                <a href="javascript:{}" onclick="document.getElementById('download_template').submit();">Download Bulk Associate Users Template</a>    
+            </form>
+        </div>
+        
         <?php if($imported && $color === "saved"): ?>
           <div style="padding:1em;">
             <p><strong>Users added: </strong>
@@ -199,7 +214,7 @@ class Harvardsettings {
         <?php endif; ?>
         <?php
     }
-
+    
     public function get_tab_url($query_params=array()){
         $query_params['book_id'] = $this->book->book_id;
         $query_params['zone'] = $this->plugin_name;
@@ -253,25 +268,29 @@ class Harvardsettings {
         $new_accounts_created = 0;
 
         foreach($arr as $row){
-            $user = $this->CI->users->get_by_email($row['email']);
+            $email_row = trim($row['email']);
+            if ($email_row === '') { continue; }
+            $user = $this->CI->users->get_by_email($email_row);
             if ($user === false) {
                 $new_user = array(
-                    'email' => $row['email'],
+                    'email' => $email_row,
                     'fullname' => empty($row['fullname']) ? 'placeholder' : $row['fullname'],
                     'password' => 'DISABLEDPASSWORD',
                 );
                 $this->CI->users->db->insert($this->CI->users->users_table, $new_user);
-                $user = $this->CI->users->get_by_email($row['email']);
+                $user = $this->CI->users->get_by_email($email_row);
                 $new_accounts_created++;
             }
             $user_id = $user->user_id;
-            if (!empty($row['relationship']) && in_array(strtolower($row['relationship']), $this->RELATIONSHIPS)) {
-                $role = strtolower($row['relationship']);
+            $row_role = trim(strtolower($row['relationship']));
+            $role = in_array($row_role, $this->RELATIONSHIPS) ? $row_role : 'reader';
+            $row_in_index = trim(strtolower($row['in_index']));
+            if ($row_in_index === 'true' || $row_in_index === '1'){
+                $in_index = 1;
             }
             else {
-                $role = 'reader';
+                $in_index = 0;
             }
-            $in_index = !empty($row['in_index']) ? $row['in_index'] : 1;
             $this->CI->users->save_books($user_id, $book_id, $role, $in_index);
             $users_added++;
         }
@@ -281,4 +300,20 @@ class Harvardsettings {
             'new_accounts_created' => $new_accounts_created
         );
     }
+    
+    public function download_template() {
+        $template_data = array(
+            $this->CSV_ROWS
+        );
+        $filename = "user_upload_template.csv";
+        $f = fopen('php://output', 'w');
+        foreach ($template_data as $line) {
+            fputcsv($f, $line, ',');
+        }
+        fclose($f);
+        header('Content-Type: application/csv');
+        header('Content-Disposition: attachment; filename="'.$filename.'";');
+        exit();
+    }
+
 }
