@@ -302,17 +302,14 @@ class Harvardsettings {
     }
     
     public function download_template() {
-        $template_data = array(
-            $this->CSV_ROWS
-        );
-        $filename = "user_upload_template.csv";
+        $template_data = array($this->CSV_ROWS);
         $f = fopen('php://output', 'w');
         foreach ($template_data as $line) {
             fputcsv($f, $line, ',');
         }
         fclose($f);
         header('Content-Type: application/csv');
-        header('Content-Disposition: attachment; filename="'.$filename.'";');
+        header('Content-Disposition: attachment; filename="user_upload_template.csv";');
         exit();
     }
 
