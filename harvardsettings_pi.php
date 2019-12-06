@@ -176,7 +176,7 @@ class Harvardsettings {
                 <input type="hidden" name="book_id" value="<?= $this->book->book_id?>" />
             <? endif ?>
             <fieldset style="border:0;">
-                <legend style="font-weight: bold; font-size: 125%; padding: 5px 0; margin:0;">Bulk Associate Users:</legend>
+                <legend style="font-weight: bold; font-size: 125%; padding: 5px 0; margin:0;">Bulk Associate Users</legend>
                 <div>
                     <label for="upload_users">Import CSV</label> &nbsp;
                     <input type="file" name="upload_users" id="upload_users">
@@ -277,9 +277,11 @@ class Harvardsettings {
                     'fullname' => empty($row['fullname']) ? 'placeholder' : $row['fullname'],
                     'password' => 'DISABLEDPASSWORD',
                 );
-                $this->CI->users->db->insert($this->CI->users->users_table, $new_user);
+                if (!$this->CI->users->db->insert($this->CI->users->users_table, $new_user)) {
+                    continue;
+                }
                 $user = $this->CI->users->get_by_email($email_row);
-                $new_accounts_created++;
+                $new_accounts_created++;              
             }
             $user_id = $user->user_id;
             $row_role = trim(strtolower($row['relationship']));
