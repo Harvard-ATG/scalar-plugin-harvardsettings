@@ -352,7 +352,11 @@ class Harvardsettings {
                 'name' => $person->names[0]->firstName . " " . $person->names[0]->lastName,
                 'email' => $person->emails[0]->email
             );    
-        }   
+        }
+        log_message(
+            'info',
+            $this->CI->data['login']->email." accessed the PDS for this query: ".$url
+        );
         return $return_obj;    
     }
     
