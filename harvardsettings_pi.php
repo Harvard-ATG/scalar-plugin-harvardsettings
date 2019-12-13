@@ -72,7 +72,8 @@ class Harvardsettings {
                             'imported' => 1,
                             'message' => $processed['message'],
                             'users_added' => $processed['users_added'],
-                            'new_accounts_created' => $processed['new_accounts_created']
+                            'new_accounts_created' => $processed['new_accounts_created'],
+                            'unsuccessful' => $processed['unsuccessful']
                         );
                         $this->redirect_and_exit($redirect_params);
                     }
@@ -198,7 +199,7 @@ class Harvardsettings {
         
         <?php if($imported && $color === "saved"): ?>
           <div style="padding:1em;">
-            <p><strong>Users added: </strong>
+            <p><strong>Users Added: </strong>
                 <?
                     $users_added = isset($_GET['users_added']) ? $_GET['users_added'] : 0;
                     echo '<span>'.$users_added.'</span>';
@@ -208,6 +209,12 @@ class Harvardsettings {
                 <?
                     $new_accounts = isset($_GET['new_accounts_created']) ? $_GET['new_accounts_created'] : 0;
                     echo '<span>'.$new_accounts.'</span>';
+                ?>
+            <p>
+            <p><strong>Failed to Add: </strong>
+                <?
+                    $unsuccessful = isset($_GET['unsuccessful']) ? $_GET['unsuccessful'] : 0;
+                    echo '<span>'.$unsuccessful.'</span>';
                 ?>
             <p>
           </div>
@@ -266,6 +273,7 @@ class Harvardsettings {
         $message = "Book Users imported";
         $users_added = 0;
         $new_accounts_created = 0;
+        $unsuccessful = 0;
         
         // hit the PDS endpoint and get an user info only if necessary
         $curl_string = $this->build_curl_string($arr);
@@ -277,11 +285,17 @@ class Harvardsettings {
             $huid_row = trim($row['huid']);
             $name = trim($row['fullname']);
             $user = $this->get_scalar_user($email_row, $huid_row, $name, $unkown_emails);
-            if ($user === "no identifiers") {continue;}
+            if ($user === "no identifiers") {
+                $unsuccessful++;
+                continue;
+            }
             if (!$user) {
                 $user = $this->new_scalar_user($email_row, $name, $new_accounts_created);
             }
-            if (!$user) {continue;}
+            if (!$user) {
+                $unsuccessful++;
+                continue;
+            }
             
             $user_id = $user->user_id;
             $row_role = trim(strtolower($row['relationship']));
@@ -299,7 +313,8 @@ class Harvardsettings {
         return array(
             'message' => $message,
             'users_added' => $users_added,
-            'new_accounts_created' => $new_accounts_created
+            'new_accounts_created' => $new_accounts_created,
+            'unsuccessful' => $unsuccessful
         );
     }
     
