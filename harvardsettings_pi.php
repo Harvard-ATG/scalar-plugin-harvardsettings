@@ -365,7 +365,7 @@ class Harvardsettings {
             $id = $person->univid;
             $return_obj->$id = (object) array(
                 'name' => $person->names[0]->firstName . " " . $person->names[0]->lastName,
-                'email' => $person->emails[0]->email
+                'email' => $person->loginName
             );    
         }
         log_message(
