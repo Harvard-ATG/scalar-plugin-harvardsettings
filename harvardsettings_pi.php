@@ -363,8 +363,9 @@ class Harvardsettings {
         }
         foreach($output as $person) {
             $id = $person->univid;
+            $name = !$person->privacyFerpaStatus ? $person->names[0]->firstName . " " . $person->names[0]->lastName : 'placeholder';
             $return_obj->$id = (object) array(
-                'name' => $person->names[0]->firstName . " " . $person->names[0]->lastName,
+                'name' => $name,
                 'email' => $person->loginName
             );    
         }
