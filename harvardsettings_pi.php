@@ -201,19 +201,19 @@ class Harvardsettings {
           <div style="padding:1em;">
             <p><strong>Users Added: </strong>
                 <?
-                    $users_added = isset($_GET['users_added']) ? $_GET['users_added'] : 0;
+                    $users_added = isset($_GET['users_added']) ? htmlspecialchars($_GET['users_added']) : 0;
                     echo '<span>'.$users_added.'</span>';
                 ?>
             </p>
             <p><strong>New Accounts Created: </strong>
                 <?
-                    $new_accounts = isset($_GET['new_accounts_created']) ? $_GET['new_accounts_created'] : 0;
+                    $new_accounts = isset($_GET['new_accounts_created']) ? htmlspecialchars($_GET['new_accounts_created']) : 0;
                     echo '<span>'.$new_accounts.'</span>';
                 ?>
             <p>
             <p><strong>Failed to Add: </strong>
                 <?
-                    $unsuccessful = isset($_GET['unsuccessful']) ? $_GET['unsuccessful'] : 0;
+                    $unsuccessful = isset($_GET['unsuccessful']) ? htmlspecialchars($_GET['unsuccessful']) : 0;
                     echo '<span>'.$unsuccessful.'</span>';
                 ?>
             <p>
@@ -363,15 +363,21 @@ class Harvardsettings {
         }
         foreach($output as $person) {
             $id = $person->univid;
-            $name = !$person->privacyFerpaStatus ? $person->names[0]->firstName . " " . $person->names[0]->lastName : 'placeholder';
+            if ($person->privacyFerpaStatus) {
+                $name = 'placeholder';
+            }
+            else {
+                $name = $person->names[0]->firstName . " " . $person->names[0]->lastName;
+            }
             $return_obj->$id = (object) array(
                 'name' => $name,
                 'email' => $person->loginName
             );    
         }
+        $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
         log_message(
             'info',
-            $this->CI->data['login']->email." accessed the PDS for this query: ".$url
+            $accessing_user." accessed the PDS for this query: ".$url
         );
         return $return_obj;    
     }
