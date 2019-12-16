@@ -72,7 +72,8 @@ class Harvardsettings {
                             'imported' => 1,
                             'message' => $processed['message'],
                             'users_added' => $processed['users_added'],
-                            'new_accounts_created' => $processed['new_accounts_created']
+                            'new_accounts_created' => $processed['new_accounts_created'],
+                            'unsuccessful' => $processed['unsuccessful']
                         );
                         $this->redirect_and_exit($redirect_params);
                     }
@@ -198,16 +199,22 @@ class Harvardsettings {
         
         <?php if($imported && $color === "saved"): ?>
           <div style="padding:1em;">
-            <p><strong>Users added: </strong>
+            <p><strong>Users Added: </strong>
                 <?
-                    $users_added = isset($_GET['users_added']) ? $_GET['users_added'] : 0;
+                    $users_added = isset($_GET['users_added']) ? htmlspecialchars($_GET['users_added']) : 0;
                     echo '<span>'.$users_added.'</span>';
                 ?>
             </p>
             <p><strong>New Accounts Created: </strong>
                 <?
-                    $new_accounts = isset($_GET['new_accounts_created']) ? $_GET['new_accounts_created'] : 0;
+                    $new_accounts = isset($_GET['new_accounts_created']) ? htmlspecialchars($_GET['new_accounts_created']) : 0;
                     echo '<span>'.$new_accounts.'</span>';
+                ?>
+            <p>
+            <p><strong>Failed to Add: </strong>
+                <?
+                    $unsuccessful = isset($_GET['unsuccessful']) ? htmlspecialchars($_GET['unsuccessful']) : 0;
+                    echo '<span>'.$unsuccessful.'</span>';
                 ?>
             <p>
           </div>
@@ -261,28 +268,35 @@ class Harvardsettings {
     }
 
     public function import_users($arr) {
-        // go ahead and move forward assuming that I have a sheet of names and emails
+        
         $book_id = array($this->book->book_id);
         $message = "Book Users imported";
         $users_added = 0;
         $new_accounts_created = 0;
-
+        $unsuccessful = 0;
+        
+        // hit the PDS endpoint and get an user info only if necessary
+        $curl_string = $this->build_curl_string($arr);
+        $emails_to_request = $curl_string === "/people?huids=&filter=name,email" ? false : true;
+        $unkown_emails = $emails_to_request ? $this->get_pds_emails($curl_string) : false;
+        
         foreach($arr as $row){
             $email_row = trim($row['email']);
-            if ($email_row === '') { continue; }
-            $user = $this->CI->users->get_by_email($email_row);
-            if ($user === false) {
-                $new_user = array(
-                    'email' => $email_row,
-                    'fullname' => empty($row['fullname']) ? 'placeholder' : $row['fullname'],
-                    'password' => 'DISABLEDPASSWORD',
-                );
-                if (!$this->CI->users->db->insert($this->CI->users->users_table, $new_user)) {
-                    continue;
-                }
-                $user = $this->CI->users->get_by_email($email_row);
-                $new_accounts_created++;              
+            $huid_row = trim($row['huid']);
+            $name = trim($row['fullname']);
+            $user = $this->get_scalar_user($email_row, $huid_row, $name, $unkown_emails);
+            if ($user === "no identifiers") {
+                $unsuccessful++;
+                continue;
             }
+            if (!$user) {
+                $user = $this->new_scalar_user($email_row, $name, $new_accounts_created);
+            }
+            if (!$user) {
+                $unsuccessful++;
+                continue;
+            }
+            
             $user_id = $user->user_id;
             $row_role = trim(strtolower($row['relationship']));
             $role = in_array($row_role, $this->RELATIONSHIPS) ? $row_role : 'reader';
@@ -299,8 +313,85 @@ class Harvardsettings {
         return array(
             'message' => $message,
             'users_added' => $users_added,
-            'new_accounts_created' => $new_accounts_created
+            'new_accounts_created' => $new_accounts_created,
+            'unsuccessful' => $unsuccessful
         );
+    }
+    
+    public function get_scalar_user(&$email_row, $huid_row, &$name, $unkown_emails) {
+        if ($email_row === '') {
+            if (!$unkown_emails || !isset($unkown_emails->$huid_row)) {
+                return "no identifiers";
+            }
+            $email_row = $unkown_emails->$huid_row->email;
+            $name = $name === '' ? $unkown_emails->$huid_row->name : $name;   
+        }
+        return $this->CI->users->get_by_email($email_row);
+    }
+    
+    public function new_scalar_user($email_row, $name, &$new_accounts_created) {
+        $new_user = array(
+            'email' => $email_row,
+            'fullname' => $name === '' ? 'placeholder' : $name,
+            'password' => 'DISABLEDPASSWORD',
+        );
+        if (!$this->CI->users->db->insert($this->CI->users->users_table, $new_user)) {
+            return false;
+        }
+        $user = $this->CI->users->get_by_email($email_row);
+        if ($user) {$new_accounts_created++;}
+        return $user;
+    }
+    
+    public function get_pds_emails($url) {
+        $c = curl_init();
+        curl_setopt($c, CURLOPT_URL, $this->CI->config->item('pds_base_url').$url);
+        curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt(
+            $c,
+            CURLOPT_USERPWD,
+            $this->CI->config->item('pds_client_id') . ":" . $this->CI->config->item('pds_client_secret')
+        );
+        $output = json_decode(curl_exec($c));
+        curl_close($c);
+        
+        $return_obj = (object) array();
+        if (isset($output->message)) {
+            if ($output->message === "No valid key, huid, netid, or email found.") {
+                return $return_obj;
+            }
+        }
+        foreach($output as $person) {
+            $id = $person->univid;
+            if ($person->privacyFerpaStatus) {
+                $name = 'placeholder';
+            }
+            else {
+                $name = $person->names[0]->firstName . " " . $person->names[0]->lastName;
+            }
+            $return_obj->$id = (object) array(
+                'name' => $name,
+                'email' => $person->loginName
+            );    
+        }
+        $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
+        log_message(
+            'info',
+            $accessing_user." accessed the PDS for this query: ".$url
+        );
+        return $return_obj;    
+    }
+    
+    public function build_curl_string($arr) {
+        $curl_string = "/people?huids=";
+        foreach($arr as $row){
+            $email_row = trim($row['email']);
+            $huid = trim($row['huid']);
+            if ($email_row === '' && $huid !== '') {
+                $curl_string.=$huid.",";
+            }
+        }
+        return $curl_string . "&filter=name,email";
     }
     
     public function download_template() {
