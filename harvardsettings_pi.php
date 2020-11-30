@@ -285,6 +285,12 @@ class Harvardsettings {
             $huid_row = trim($row['huid']);
             $name = trim($row['fullname']);
             $user = $this->get_scalar_user($email_row, $huid_row, $name, $unkown_emails);
+            
+            if (($name === '' || $name === 'placeholder') && $email_row !== '') {
+                // last chance to get a user's name if it is missing, but we have their email
+                $name = $this->get_pds_name_by_email($email_row);
+            }
+            
             if ($user === "no identifiers") {
                 $unsuccessful++;
                 continue;
@@ -383,6 +389,37 @@ class Harvardsettings {
         return $return_obj;    
     }
     
+    public function get_pds_name_by_email($email) {
+        $url = "/people?email=" . $email . "&filter=name,email";
+        $c = curl_init();
+        curl_setopt($c, CURLOPT_URL, $this->CI->config->item('pds_base_url').$url);
+        curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt(
+            $c,
+            CURLOPT_USERPWD,
+            $this->CI->config->item('pds_client_id') . ":" . $this->CI->config->item('pds_client_secret')
+        );
+        $output = json_decode(curl_exec($c));
+        curl_close($c);
+        $return_str = 'placeholder'
+        if (isset($output->message)) {
+            if ($output->message === "No valid key, huid, netid, or email found.") {
+                return $return_str;
+            }
+        }
+        foreach($output as $person) {
+            if (!$person->privacyFerpaStatus) {
+                $return_str = $person->names[0]->firstName . " " . $person->names[0]->lastName;
+            }  
+        }
+        $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
+        log_message(
+            'info',
+            $accessing_user." accessed the PDS for this query: ".$url
+        );
+        return $return_str; 
+    }
+    
     public function build_curl_string($arr) {
         $curl_string = "/people?huids=";
         foreach($arr as $row){
@@ -394,6 +431,14 @@ class Harvardsettings {
         }
         return $curl_string . "&filter=name,email";
     }
+    
+    // if email is missing: we must get it by using huid.
+    //// This also takes care of their name
+    // If email is provided, but name is missing, we must get the name using email
+    //// curl_string people?email=email&filter=name,email
+    //// you can use the full email
+    //// It doesn't appear that you can make a bulk request this way, so names will need to be handled individually
+    
     
     public function download_template() {
         $template_data = array($this->CSV_ROWS);
