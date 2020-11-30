@@ -369,9 +369,10 @@ class Harvardsettings {
             else {
                 $name = $person->names[0]->firstName . " " . $person->names[0]->lastName;
             }
+            $email = $person->loginName ? $person->loginName : $person->emails[0]->email;
             $return_obj->$id = (object) array(
                 'name' => $name,
-                'email' => $person->loginName
+                'email' => $email
             );    
         }
         $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
