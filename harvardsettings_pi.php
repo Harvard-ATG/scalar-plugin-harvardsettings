@@ -401,7 +401,7 @@ class Harvardsettings {
         );
         $output = json_decode(curl_exec($c));
         curl_close($c);
-        $return_str = 'placeholder'
+        $return_str = 'placeholder';
         if (isset($output->message)) {
             if ($output->message === "No valid key, huid, netid, or email found.") {
                 return $return_str;
