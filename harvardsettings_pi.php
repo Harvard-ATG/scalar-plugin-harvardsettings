@@ -432,14 +432,6 @@ class Harvardsettings {
         return $curl_string . "&filter=name,email";
     }
     
-    // if email is missing: we must get it by using huid.
-    //// This also takes care of their name
-    // If email is provided, but name is missing, we must get the name using email
-    //// curl_string people?email=email&filter=name,email
-    //// you can use the full email
-    //// It doesn't appear that you can make a bulk request this way, so names will need to be handled individually
-    
-    
     public function download_template() {
         $template_data = array($this->CSV_ROWS);
         $f = fopen('php://output', 'w');
