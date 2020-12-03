@@ -285,6 +285,12 @@ class Harvardsettings {
             $huid_row = trim($row['huid']);
             $name = trim($row['fullname']);
             $user = $this->get_scalar_user($email_row, $huid_row, $name, $unkown_emails);
+            
+            if (($name === '' || $name === 'placeholder') && $email_row !== '') {
+                // last chance to get a user's name if it is missing, but we have their email
+                $name = $this->get_pds_name_by_email($email_row);
+            }
+            
             if ($user === "no identifiers") {
                 $unsuccessful++;
                 continue;
@@ -344,24 +350,23 @@ class Harvardsettings {
     }
     
     public function get_pds_emails($url) {
-        $c = curl_init();
-        curl_setopt($c, CURLOPT_URL, $this->CI->config->item('pds_base_url').$url);
-        curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt(
-            $c,
-            CURLOPT_USERPWD,
-            $this->CI->config->item('pds_client_id') . ":" . $this->CI->config->item('pds_client_secret')
-        );
-        $output = json_decode(curl_exec($c));
-        curl_close($c);
-        
         $return_obj = (object) array();
-        if (isset($output->message)) {
-            if ($output->message === "No valid key, huid, netid, or email found.") {
+        $person_json = $this->curl_pds($url);
+
+        if ($person_json === NULL) {
+            log_message(
+                'info',
+                'Request to PDS failed. Check that the endpoint and credentials are valid.'
+            );
+            return $return_obj;
+        }
+        
+        if (isset($person_json->message)) {
+            if ($person_json->message === "No valid key, huid, netid, or email found.") {
                 return $return_obj;
             }
         }
-        foreach($output as $person) {
+        foreach($person_json as $person) {
             $id = $person->univid;
             if ($person->privacyFerpaStatus) {
                 $name = 'placeholder';
@@ -369,9 +374,26 @@ class Harvardsettings {
             else {
                 $name = $person->names[0]->firstName . " " . $person->names[0]->lastName;
             }
+
+            // determine the user's valid email
+            if (!$person->loginName) { // if the user doesnt have a loginName set
+                $email = '';
+                foreach ($person->emails as $potentialEmail) {
+                    if ($potentialEmail->officialEmailIndicator === true){
+                        $email = $potentialEmail->email;
+                        break;
+                    }
+                }
+                if ($email === ''){ // if email is not set, then set it by the first email in the array
+                    $email = $person->emails[0]->email;
+                }
+            } else {
+                $email = $person->loginName;
+            }
+
             $return_obj->$id = (object) array(
                 'name' => $name,
-                'email' => $person->loginName
+                'email' => $email
             );    
         }
         $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
@@ -380,6 +402,37 @@ class Harvardsettings {
             $accessing_user." accessed the PDS for this query: ".$url
         );
         return $return_obj;    
+    }
+    
+    public function get_pds_name_by_email($email) {
+        $url = "/people?email=" . $email . "&filter=name,email";
+        $return_str = 'placeholder';
+        $person_json = $this->curl_pds($url);
+
+        if ($person_json === NULL) {
+            log_message(
+                'info',
+                'Request to PDS failed. Check that the endpoint and credentials are valid.'
+            );
+            return $return_str;
+        }
+
+        if (isset($person_json->message)) {
+            if ($person_json->message === "No valid key, huid, netid, or email found.") {
+                return $return_str;
+            }
+        }
+        foreach($person_json as $person) {
+            if (!$person->privacyFerpaStatus) {
+                $return_str = $person->names[0]->firstName . " " . $person->names[0]->lastName;
+            }  
+        }
+        $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
+        log_message(
+            'info',
+            $accessing_user." accessed the PDS for this query: ".$url
+        );
+        return $return_str; 
     }
     
     public function build_curl_string($arr) {
@@ -404,6 +457,20 @@ class Harvardsettings {
         header('Content-Type: application/csv');
         header('Content-Disposition: attachment; filename="user_upload_template.csv";');
         exit();
+    }
+
+    private function curl_pds($url) {
+        $c = curl_init();
+        curl_setopt($c, CURLOPT_URL, $this->CI->config->item('pds_base_url').$url);
+        curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt(
+            $c,
+            CURLOPT_USERPWD,
+            $this->CI->config->item('pds_client_id') . ":" . $this->CI->config->item('pds_client_secret')
+        );
+        $person_json = json_decode(curl_exec($c));
+        curl_close($c);
+        return $person_json;
     }
 
 }
