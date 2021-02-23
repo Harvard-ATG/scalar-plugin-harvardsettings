@@ -278,23 +278,26 @@ class Harvardsettings {
         // hit the PDS endpoint and get user info only if necessary
         // check if any data is missing, but huid is available
         $body_condition_univid = $this->build_body_conditions($arr, 'univid');
+        
         if (!empty($body_condition_univid)) {
             // curl for data if necessary
             $conditions = array('univid' => $body_condition_univid);
             $people_by_pds_univid = $this->get_pds_emails_names($conditions, 'univid');
         }
+        
         // if there is some value set by looking folks up, update the original array of data
         if(isset($people_by_pds_univid)){ // update the $arr
-            foreach($arr as $row) {
-                $email = trim($row['email']);
-                $huid = trim($row['huid']);
-                $name = trim($row['fullname']);
+            foreach($arr as $key => $field) {
+                $email = trim($field['email']);
+                $huid = trim($field['huid']);
+                $name = trim($field['fullname']);
                 if (isset($people_by_pds_univid->$huid)) {
-                    $row['email'] = $people_by_pds_univid->$huid->email;
-                    $row['fullname'] = $name === '' ? $people_by_pds_univid->$huid->name : $name;
+                    $arr[$key]['email'] = $people_by_pds_univid->$huid->email;
+                    $arr[$key]['fullname'] = $name === '' ? $people_by_pds_univid->$huid->name : $name;
                 }
             }
         }
+        
 
         $body_condition_loginName = $this->build_body_conditions($arr, 'loginName');
         if (!empty($body_condition_loginName)) {
@@ -302,21 +305,22 @@ class Harvardsettings {
             $conditions = array('loginName' => $body_condition_loginName);
             $people_by_pds_loginName = $this->get_pds_emails_names($conditions, 'loginName');
         }
-
+        
         if(isset($people_by_pds_loginName)){ // update the $arr
-            foreach($arr as $row) {
-                $email = trim($row['email']);
+            foreach($arr as $key => $field) {
+                $email = trim($field['email']);
                 if (isset($people_by_pds_loginName->$email)) {
-                    $row['fullname'] = $people_by_pds_loginName->$email->name;
+                    $arr[$key]['fullname'] = $people_by_pds_loginName->$email->name;
                 }
             }
         }
+        
         
         foreach($arr as $row){
             $email_row = trim($row['email']);
             $huid_row = trim($row['huid']);
             $name = trim($row['fullname']);
-            $user = $this->get_scalar_user($email_row, $huid_row, $name, $unkown_emails);
+            $user = $this->get_scalar_user($email_row, $huid_row, $name);
            
             if ($user === "no identifiers") {
                 $unsuccessful++;
@@ -383,15 +387,18 @@ class Harvardsettings {
             );
             return $return_obj;
         }
-        
-        if (isset($person_json->message)) {
-            if ($person_json->message === "No valid key, huid, netid, or email found.") {
-                return $return_obj;
-            }
+
+        if (isset($person_json->fault)) {
+            log_message(
+                'info',
+                'PDS failure: ' . $person_json->fault->faultstring
+            );
+            return $return_obj;
         }
-        foreach($person_json as $person) {
+
+        foreach($person_json->results as $person) {
             $id = $person->univid;
-            if ($person->privacyFerpaStatus) {
+            if ($person->privacyFerpaStatus == true) {
                 $name = 'placeholder';
             }
             else {
@@ -419,19 +426,19 @@ class Harvardsettings {
                     'name' => $name,
                     'email' => $email
                 );
+                
             } else { // otherwise the lookup field should be the loginName
                 $return_obj->$email = (object) array(
                     'name' => $name
                 );
-            }
-
-                
+            }    
         }
         $accessing_user = $this->CI->data['login']->email." (".$this->CI->data['login']->user_id.")";
         log_message(
             'info',
-            $accessing_user." accessed the PDS for this query: ".$url
+            $accessing_user." accessed the PDS for info on the following: " . print_r($conditions)
         );
+        
         return $return_obj;    
     }
 
@@ -451,6 +458,7 @@ class Harvardsettings {
                 }
             }
         }
+        return $conditions;
     }
     
     public function download_template() {
@@ -467,13 +475,14 @@ class Harvardsettings {
 
     private function curl_pds($conditions) {
         // conditions should be an object like so:
-        // conditions : { 'univid': [1,2,3], 'loginName':['tylor_dodge@harvard.edu, ...]}
+        // conditions : { 'univid': [1,2,3] }
+        // or conditions : { 'loginName':['tylor_dodge@harvard.edu, ...] }
         $c = curl_init();
         curl_setopt($c, CURLOPT_URL, $this->CI->config->item('pds_apigee_base_url'));
-        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($c, CURLOPT_CUSTOMREQUEST, 'POST');
         curl_setopt($c, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($c, CURLOPT_HTTPHEADER, array(
-            "X-Api-Key: " . $this->CI->config->item('pds_apigee_client_key') . "'",
+            "X-Api-Key: " . $this->CI->config->item('pds_apigee_client_key'),
             "Accept: application/json",
             "Content-Type: application/json",
         ));
