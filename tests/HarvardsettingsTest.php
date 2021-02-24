@@ -125,16 +125,23 @@ class HarvardsettingsTest extends TestCase {
         $expected_subdomain_url = "https://".$data['book']->slug.".".$domain.'/';
         $this->assertEquals($expected_url, $plugin->get_subdomain_url());
     }
-    
-    public function test_build_curl_string() {
+
+    public function test_build_body_conditions() {
         $test_array = array(
             array(
+                'fullname' => '',
                 'email' => '',
                 'huid' => 11
             ),
             array(
+                'fullname' => 'Zahid',
                 'email' => 'fake1@fake.org',
                 'huid' => 12
+            ),
+            array(
+                'fullname' => '',
+                'email' => 'fake2@fake.org',
+                'huid'=> ''
             )
         );
         $data = array(
@@ -146,8 +153,12 @@ class HarvardsettingsTest extends TestCase {
         );
         $mock_codeigniter_instance = get_mock_codeigniter_instance();
         $plugin = $this->create_mock_plugin_instance($mock_codeigniter_instance, $data);
-        $import = $plugin->build_curl_string($test_array);
-        $this->assertEquals('/people?huids=11,&filter=name,email', $import);
+        $huid_conditions = $plugin->build_body_conditions($test_array, 'univid');
+        $this->assertEquals(1, count($huid_conditions));
+        $this->assertEquals(11, $huid_conditions[0]);
+        $email_conditions = $plugin->build_body_conditions($test_array, 'loginName');
+        $this->assertEquals(1, count($email_conditions));
+        $this->assertEquals('fake2@fake.org', $email_conditions[0]);
     }
 
 }
