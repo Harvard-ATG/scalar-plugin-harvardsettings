@@ -278,7 +278,6 @@ class Harvardsettings {
         // hit the PDS endpoint and get user info only if necessary
         // check if any data is missing, but huid is available
         $body_condition_univid = $this->build_body_conditions($arr, 'univid');
-        
         if (!empty($body_condition_univid)) {
             // curl for data if necessary
             $conditions = array('univid' => $body_condition_univid);
@@ -297,8 +296,7 @@ class Harvardsettings {
                 }
             }
         }
-        
-
+        // repeat the process with email rather than huid
         $body_condition_loginName = $this->build_body_conditions($arr, 'loginName');
         if (!empty($body_condition_loginName)) {
             // curl for data if necessary
@@ -382,7 +380,7 @@ class Harvardsettings {
 
         if ($person_json === NULL) {
             log_message(
-                'info',
+                'error',
                 'Request to PDS failed. Check that the endpoint and credentials are valid.'
             );
             return $return_obj;
@@ -390,7 +388,7 @@ class Harvardsettings {
 
         if (isset($person_json->fault)) {
             log_message(
-                'info',
+                'error',
                 'PDS failure: ' . $person_json->fault->faultstring
             );
             return $return_obj;
@@ -398,7 +396,7 @@ class Harvardsettings {
 
         foreach($person_json->results as $person) {
             $id = $person->univid;
-            if ($person->privacyFerpaStatus == true) {
+            if ($person->privacyFerpaStatus) {
                 $name = 'placeholder';
             }
             else {
@@ -477,6 +475,13 @@ class Harvardsettings {
         // conditions should be an object like so:
         // conditions : { 'univid': [1,2,3] }
         // or conditions : { 'loginName':['tylor_dodge@harvard.edu, ...] }
+        if (!$this->CI->config->item('pds_apigee_base_url') || !$this->CI->config->item('pds_apigee_client_key')){
+            log_message(
+                'error',
+                'PDS url or client key not set'
+            );
+            return NULL;
+        }
         $c = curl_init();
         curl_setopt($c, CURLOPT_URL, $this->CI->config->item('pds_apigee_base_url'));
         curl_setopt($c, CURLOPT_CUSTOMREQUEST, 'POST');
